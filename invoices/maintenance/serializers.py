@@ -275,7 +275,7 @@ class MaintenanceSerializer(serializers.ModelSerializer):
                 part.spare_part         = row['_spare_part_obj']
                 part.quantity           = row['_qty_decimal']
                 part.last_updated_by    = maintenance.last_updated_by
-                part.last_updated_at    = maintenance.last_updated_at
+                # part.last_updated_at    = maintenance.last_updated_at
                 part.save()
 
             elif action == 'delete':

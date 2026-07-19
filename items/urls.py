@@ -13,7 +13,12 @@ from .views import (
 urlpatterns = [
 	path('', ItemsList.as_view(), name='items-list'),
 	path('<int:pk>/', ItemDetail.as_view(), name='item-detail'),
-	path('<int:pk>/fluctuation/', ItemFluctuation.as_view(), name='item-fluctuation'),
+	path(
+        '<int:pk>/fluctuation/', 
+        ItemFluctuation.as_view(), 
+        {'___view_id': 'items_itemFluctuation'},
+        name='item-fluctuation'
+    ),
 	path('quantity-errors-list/', quantity_errors_list_view, name='quantity-errors-list'),
 	path('quantity-errors-corrector/', quantity_errors_corrector_view, name='quantity-errors-corrector'),
 	path('types/', TypesList.as_view(), name='types-list'),

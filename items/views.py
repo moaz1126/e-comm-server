@@ -15,6 +15,7 @@ from .services.handle_images_insertion import http_request_images_handler
 from .services.handle_barcodes import http_request_barcodes_handler
 # 
 from .services.validate_items_stock import ValidateItemsStock
+from auth._permissions.CustomeViewsPermission import CustomeViewsPermission
 # 
 from operator import and_
 from functools import reduce
@@ -346,7 +347,8 @@ class TypesList(mixins.ListModelMixin,
 
 
 class ItemFluctuation(APIView):
-	def get(self, request, pk):
+	permission_classes = (CustomeViewsPermission, )
+	def get(self, request, pk, **kwargs):
 		data = get_item_fluctuation(pk)
 		return Response(data, status=status.HTTP_200_OK)
 

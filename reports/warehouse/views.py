@@ -14,6 +14,7 @@ import json
 
 from items.models import Items , Repositories
 from .services.item_movement_service import ItemMovementService
+from auth._permissions.CustomeViewsPermission import CustomeViewsPermission
 
 
 @method_decorator(login_required, name='dispatch')
@@ -152,6 +153,9 @@ class ItemMovementReportView(View):
 
 
 class ItemRepositoryMovementReport(ListAPIView):
+    permission_classes = (CustomeViewsPermission, )
+
+
     def get(self, request, *args, **kwargs):
         """API endpoint for getting item movement data."""    
         try:

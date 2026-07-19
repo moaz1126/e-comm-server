@@ -9,6 +9,7 @@ def getOwnersCreditBalance():
         
         if credit != 0:
             l.append({
+                "client_id": client.id,
                 "name": client.name,
                 "amount": credit
             })

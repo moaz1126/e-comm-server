@@ -10,6 +10,14 @@ urlpatterns = [
     path('s/refund/', ReturnListCreateView.as_view(), name='return-list-create'),
     path('s/refund/<str:pk>/', RefundDetailView.as_view(), name='refund-detail'),
     # analysis
-    path('t/sales-refund-totals/', SalesAndRefundTotals.as_view()),
-    path('analysis/cash-deferred-percentages/', CashAndDeferredPercentages.as_view())
+    path(
+        't/sales-refund-totals/', 
+        SalesAndRefundTotals.as_view(),
+        {'___view_id': 'sales_totalItemsSoldIn'},
+    ),
+    path(
+        'analysis/cash-deferred-percentages/', 
+        CashAndDeferredPercentages.as_view(),
+        {'___view_id': 'sales_analysisCashDeferredPercentages'},
+    )
 ]

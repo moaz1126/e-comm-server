@@ -18,8 +18,18 @@ from .views import (
 
 urlpatterns = [
     # API endpoint for getting balance
-    path('balance/', VaultBalanceAPIView.as_view(), name='api_balance'),
-    path('account-movements/', AccountMovementListView.as_view(), name='account-movements-list'),
+    path(
+        'balance/', 
+        VaultBalanceAPIView.as_view(), 
+        {'___view_id': 'vaultMthod_balance'},
+        name='api_balance'
+    ),
+    path(
+        'account-movements/', 
+        AccountMovementListView.as_view(), 
+        {'___view_id': 'vaultMthod_accountMovements'},
+        name='account-movements-list'
+    ),
 
 
     path('', ListCreateAccountsView.as_view()),

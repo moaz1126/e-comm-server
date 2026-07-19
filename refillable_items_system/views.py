@@ -22,6 +22,7 @@ from .serializers import RefundedRefillableItemSerializer, RefilledItemSerialize
 from .management.commands.generateCansClientHasReport import get_cans_data_list
 # 
 from .services.calculate_refillable_items_client_has import calculateRefillableItemsClientHas
+from auth._permissions.CustomeViewsPermission import CustomeViewsPermission
 # 
 from common.utilities import get_pagination_class
 # 
@@ -56,7 +57,7 @@ def ownersHasRefillableItems(request, *args, **kwargs):
 
 
 class GetCansClientHasReport(generics.ListAPIView):
-    # serializer_class = CustomDataSerializer
+    permission_classes = (CustomeViewsPermission, )
 
 
     def get_queryset(self):
@@ -143,7 +144,7 @@ class GetCansClientHasReport(generics.ListAPIView):
 from .services.analysis_item_unit_cost import RefillableItemPriceCalculator
 
 class AnalysisItemUnitCostView(APIView):
-    permission_classes = (AllowAny, )
+    permission_classes = (CustomeViewsPermission, )
 
 
     def get(self, request, *args, **kwargs):

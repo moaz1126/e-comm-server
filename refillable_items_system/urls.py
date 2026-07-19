@@ -27,7 +27,15 @@ urlpatterns = [
 
 
 
-    path('cans-client-has/<int:pk>/', GetCansClientHasReport.as_view()),
+    path(
+        'cans-client-has/<int:pk>/', 
+        GetCansClientHasReport.as_view(),
+        {'___view_id': 'refillableItems_refundableItemsClientHas'},
+    ),
 
-    path('analysis/item-unit-cost/', AnalysisItemUnitCostView.as_view())
+    path(
+        'analysis/item-unit-cost/', 
+        AnalysisItemUnitCostView.as_view(),
+        {'___view_id': 'refillableItems_itemUnitCost'},
+    )
 ]

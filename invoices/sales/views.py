@@ -14,6 +14,7 @@ from .services.item_sales_and_refund_in_period import get_sold_and_items_totals_
 from .services.filters import SalesInvoiceFilter, ReturnInvoiceFilter
 from .services.get_cash_and_deferred_percentages import get_cash_deferred_percentages
 from items.services.validate_items_stock import ValidateItemsStock
+from auth._permissions.CustomeViewsPermission import CustomeViewsPermission
 # 
 from common.encoder import MixedRadixEncoder
 from common.views import AbstractInvoiceDetailView, AbstractInvoiceListCreateView
@@ -47,6 +48,7 @@ def toggle_repository_permit(request, *args, **kwargs):
 	})
 
 class SalesAndRefundTotals(generics.ListAPIView):
+    permission_classes = (CustomeViewsPermission, )
     def get(self, request, *args, **kwargs):
         try:
             res = get_sold_and_items_totals_withen_period_as_http_response(
@@ -138,6 +140,6 @@ class RefundDetailView(
 
 
 class CashAndDeferredPercentages(generics.ListAPIView):
-    permission_classes = (AllowAny, )
+    permission_classes = (CustomeViewsPermission, )
     def get(self, request, *args, **kwargs):
         return Response(get_cash_deferred_percentages())
