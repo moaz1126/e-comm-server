@@ -18,27 +18,26 @@ class Maintenance(UpdatedCreatedByV2):
         ], 
         default='pending', 
     )
-    date_in = models.DateField(default=date.today)
+    date_in = models.DateField(default=date.today, blank=True)
     maintenance_date = models.DateField(null=True, blank=True)
     date_out = models.DateField(null=True, blank=True)
-    by = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, blank=True, null=True, related_name='maintained_by')
-    malfunctions = models.TextField(blank=True)
-    notes = models.TextField(blank=True)
+    maintained_by = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, blank=True, null=True, related_name='maintained_by')
+    malfunctions = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
 
 
     def __str__(self):
         return f'client: {self.client}, S/N: {self.serial_number}, Date In: {self.date_in}'
 
     def save(self, *args, **kwargs):
-        self.status = 'pending'
-        if self.maintenance_date and not self.date_out:
-            self.status = 'maintained'
-        elif self.date_out and not self.maintenance_date:
-            self.status = 'rejected'
-        elif self.maintenance_date and self.date_out:
-            self.status = 'mcomplete'
-        # elif (not self.maintenance_date and self.malfunctions) or (self.date_out and not self.malfunctions):
-        #     self.status = 'unknown'
+        status_map = {
+            (False, False): 'pending',
+            (False, True):  'maintained',
+            (True, False):  'rejected',
+            (True, True):   'mcomplete'
+        }
+
+        self.status = status_map[(bool(self.date_out), bool(self.maintenance_date))]
 
         super().save(*args, **kwargs)
 

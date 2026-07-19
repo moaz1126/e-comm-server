@@ -1,15 +1,14 @@
 import json
-from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from rest_framework import serializers
 
 from common.encoder import MixedRadixEncoder
+from common.services.NumberValidator import NumberValidator
+from common.utility.audit_info_dateformatter import audit_info_dateformatter
 
 from .models import Maintenance, TransactionSpareParts
 from items.models import Items    # adjust import to your actual Items location
-from invoices.buyer_supplier_party.models import Party        # adjust import to your actual Party location
-from employees.models import Employee
 
 
 class SparePartLineSerializer(serializers.ModelSerializer):
@@ -34,16 +33,20 @@ class SparePartLineSerializer(serializers.ModelSerializer):
     #     source='spare_part',
     #     write_only=False,
     # )
-    spare_part = serializers.SerializerMethodField(read_only=True)
+    _spare_part_name = serializers.ReadOnlyField(source='spare_part.name')
+    _audit_info = serializers.SerializerMethodField()
 
 
     class Meta:
         model = TransactionSpareParts
-        fields = ['id', 'spare_part', 'spare_part_id', 'quantity']
-        read_only_fields = ['id', 'spare_part']
+        fields = ['id', '_spare_part_name', 'spare_part', 'quantity', '_audit_info']
+        read_only_fields = ['id', '_spare_part_name', '_audit_info']
 
-    def get_spare_part(self, obj):
-        return {'id': obj.spare_part_id, 'name': obj.spare_part.name}
+    def get__audit_info(self, obj):
+        return audit_info_dateformatter(obj)
+
+    # def get__spare_part(self, obj):
+    #     return {'id': obj.spare_part_id, 'name': obj.spare_part.name}
 
 
 class MaintenanceSerializer(serializers.ModelSerializer):
@@ -63,7 +66,7 @@ class MaintenanceSerializer(serializers.ModelSerializer):
 
     _client_name = serializers.ReadOnlyField(source='client.name')
     _item_name = serializers.ReadOnlyField(source='item.name')
-    _by_first_name = serializers.ReadOnlyField(source='by.first_name')
+    _maintained_by_name = serializers.SerializerMethodField()
     # parts = TransactionSparePartsSerializer(many=True, read_only=False, required=False)
     _hashed_id = serializers.SerializerMethodField()
     _audit_info = serializers.SerializerMethodField()
@@ -71,7 +74,7 @@ class MaintenanceSerializer(serializers.ModelSerializer):
 
 
     # Read-only nested representation returned in GET responses
-    parts = SparePartLineSerializer(many=True, read_only=True)
+    parts = SparePartLineSerializer(many=True, required=False)
 
     # Accept `parts_json` as a write-only JSON string (FormData path)
     parts_json = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -85,7 +88,7 @@ class MaintenanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Maintenance
         fields = [
-            'id',
+            # 'id',
             'client',
             'serial_number',
             'item',
@@ -93,45 +96,29 @@ class MaintenanceSerializer(serializers.ModelSerializer):
             'date_in',
             'maintenance_date',
             'date_out',
-            'by',
+            'maintained_by',
             'malfunctions',
             'notes',
             'parts',            # read
             'parts_json',       # write (FormData path)
-            '_client_name', '_item_name', '_by_first_name', '_hashed_id', '_audit_info'
+            '_client_name', '_item_name', '_maintained_by_name', '_hashed_id', '_audit_info'
         ]
-        read_only_fields = ['id', 'status']
-    
+        read_only_fields = ['id', 'status', '_maintained_by_name']
+        extra_kwargs = {
+            # 'date_in': {'required': False},
+            # 'malfunctions': {'allow_null': True},
+            # 'notes': {'allow_null': True},
+            # 'age': {'required': False, 'allow_null': True}
+        }
     
     def get__hashed_id(self, obj):
         return MixedRadixEncoder().encode(obj.id)
     
     def get__audit_info(self, obj):
-        diff = obj.last_updated_at - obj.created_at
-        total_seconds = int(diff.total_seconds())
-
-        # Break into components
-        days = total_seconds // 86400
-        hours = (total_seconds % 86400) // 3600
-        minutes = (total_seconds % 3600) // 60
-        seconds = total_seconds % 60
-
-        # Build the string based on conditions
-        parts = []
-        if days > 0: parts.append(f"{days}d")
-        if hours > 0: parts.append(f"{hours}h")
-        if minutes > 0: parts.append(f"{minutes}m")
-        parts.append(f"{seconds}s")
-
-        time_diff = f"{' '.join(parts)}"
-
-        return {
-            'created_at': obj.created_at.strftime('%Y.%m.%d %H:%M:%S'),
-            'created_by': obj.created_by.username,
-            'last_updated_at': obj.last_updated_at.strftime('%Y.%m.%d %H:%M:%S'),
-            'last_updated_by': obj.last_updated_by.username,
-            'time_diff': time_diff
-        }
+        return audit_info_dateformatter(obj)
+    
+    def get__maintained_by_name(self, obj):
+        return f"{obj.maintained_by.first_name} {obj.maintained_by.last_name}" if obj.maintained_by else " - "
 
     # ── normalise incoming parts ──────────────────────────────────────────────
 
@@ -139,6 +126,9 @@ class MaintenanceSerializer(serializers.ModelSerializer):
         # Support both FormData (parts_json string) and JSON (parts list).
         # We handle parts separately so we can pop parts_json cleanly.
         mutable = data.copy() if hasattr(data, 'copy') else dict(data)
+
+        if not mutable.get('date_in'):  
+            mutable.pop('date_in', None)
 
         raw_parts = None
         if 'parts' in mutable and isinstance(mutable['parts'], (list, tuple)):
@@ -159,6 +149,7 @@ class MaintenanceSerializer(serializers.ModelSerializer):
     # ── validate parts list ───────────────────────────────────────────────────
 
     def validate(self, attrs):
+        attrs = super().validate(attrs)
         raw_parts  = attrs.pop('_raw_parts', [])
         part_errors = []
         clean_parts = []
@@ -186,15 +177,13 @@ class MaintenanceSerializer(serializers.ModelSerializer):
                     else:
                         row['_spare_part_obj'] = spare_part
 
-                qty = row.get('quantity', 1)
-                try:
-                    qty_decimal = Decimal(str(qty))
-                    if qty_decimal <= 0:
-                        err['quantity'] = 'Quantity must be greater than zero.'
-                    else:
-                        row['_qty_decimal'] = qty_decimal
-                except InvalidOperation:
-                    err['quantity'] = 'Enter a valid number.'
+                v, error = NumberValidator._coerce_to_numeric(row.get('quantity', 1))
+                if error:
+                    err['quantity'] = error    
+                elif v <= 0 or v >= 9999999.99:
+                    err['quantity'] = 'unsupported value'
+                else:
+                    row['_qty_decimal'] = v
 
             elif action == 'delete':
                 part_id = row.get('id')
@@ -259,6 +248,8 @@ class MaintenanceSerializer(serializers.ModelSerializer):
                     maintenance=maintenance,
                     spare_part=row['_spare_part_obj'],
                     quantity=row['_qty_decimal'],
+                    created_by=maintenance.created_by,
+                    last_updated_by=maintenance.last_updated_by
                 )
 
             elif action == 'update':
@@ -269,6 +260,8 @@ class MaintenanceSerializer(serializers.ModelSerializer):
                         maintenance=maintenance,
                         spare_part=row['_spare_part_obj'],
                         quantity=row['_qty_decimal'],
+                        # created_by=maintenance.created_by,
+                        last_updated_by=maintenance.last_updated_by
                     )
                     continue
                 try:
@@ -279,8 +272,10 @@ class MaintenanceSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {'parts': f'Part with id {part_id} does not belong to this maintenance record.'}
                     )
-                part.spare_part = row['_spare_part_obj']
-                part.quantity   = row['_qty_decimal']
+                part.spare_part         = row['_spare_part_obj']
+                part.quantity           = row['_qty_decimal']
+                part.last_updated_by    = maintenance.last_updated_by
+                part.last_updated_at    = maintenance.last_updated_at
                 part.save()
 
             elif action == 'delete':
