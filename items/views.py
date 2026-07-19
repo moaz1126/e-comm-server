@@ -1,11 +1,13 @@
-from rest_framework import generics, mixins, serializers, status, viewsets
+from rest_framework import generics, mixins, status, viewsets
 # from rest_framework.generics import UpdateAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny
+
+from common.services.customeConfigurationHandler import customeFilters
 # 
-from .models import Items, Images, ItemPriceLog, Types, Barcode
+from .models import Items, Images, ItemPriceLog, Types
 from .serializers import ItemsSerializer, TypesSerializer, InitialStockSerializer, DamagedItemsSerializer
 # 
 from .services.item_fluctuation import get_item_fluctuation
@@ -169,6 +171,7 @@ class ItemsList(mixins.ListModelMixin,
 	def get_queryset(self):
 		queryset = self.queryset
 		
+		queryset = customeFilters(self, queryset, 'items')
 		
 		type = self.request.query_params.get('type')
 		if type:
@@ -244,10 +247,12 @@ class ItemDetail(
 	# 	return super().get_serializer(*args, **kwargs)
 
 	def get_queryset(self):
+		queryset = self.queryset
+		queryset = customeFilters(self, queryset, 'items')
 		# Return all items for any authenticated user.
 		# List view (ItemsList) handles type-based filtering for the listing.
 		# Detail view should be accessible to anyone with view_items permission.
-		return self.queryset
+		return queryset
 
 	def get(self, request, *args, **kwargs):
 		return self.retrieve(request, *args, **kwargs)
