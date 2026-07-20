@@ -160,15 +160,8 @@ class DetailAccountTypeView(
 
 
 
-
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-class SuperUserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
-	def test_func(self):
-		return self.request.user.is_superuser
-
-
 # class VaultBalanceAPIView(LoginRequiredMixin, APIView):
-class VaultBalanceAPIView(APIView, SuperUserRequiredMixin):
+class VaultBalanceAPIView(APIView):
 	"""
 	API endpoint to retrieve vault balance(s).
 	
@@ -511,7 +504,7 @@ from .serializers import (
 
 
 
-class AccountMovementListView(APIView, SuperUserRequiredMixin):
+class AccountMovementListView(APIView):
 	"""
 	Get account movements with optional filtering.
 	
