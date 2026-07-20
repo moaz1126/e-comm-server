@@ -10,6 +10,8 @@ def customeFilters(obj, queryset, key):
 def customeViewsUserPermissionHandler(user, ___view_id):
     if not ___view_id: return False
 
+    if user.is_superuser: return True
+
     customeConfig = get_config_json_data().get('customeViewsUserPermission', {})
     if user.username in customeConfig[___view_id]:
         return True
