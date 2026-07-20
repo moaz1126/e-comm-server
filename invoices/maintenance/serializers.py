@@ -1,12 +1,9 @@
-import json
-
-from django.db import transaction
 from rest_framework import serializers
 
 from common.encoder import MixedRadixEncoder
+from common.services.MultySubModelSerializerHandler import WritableMultipleNestedSubmodelsMixin
 from common.services.NumberValidator import NumberValidator
 from common.utility.audit_info_dateformatter import audit_info_dateformatter
-from common.services.SubModelSerializerHandler import WritableNestedSubmodelMixin
 
 from .models import Maintenance, TransactionSpareParts
 from items.models import Items    # adjust import to your actual Items location
@@ -50,7 +47,7 @@ class SparePartLineSerializer(serializers.ModelSerializer):
     #     return {'id': obj.spare_part_id, 'name': obj.spare_part.name}
 
 
-class MaintenanceSerializer(WritableNestedSubmodelMixin, serializers.ModelSerializer):
+class MaintenanceSerializer(WritableMultipleNestedSubmodelsMixin, serializers.ModelSerializer):
     """
     Full Maintenance serializer with writable nested spare parts.
 
@@ -67,9 +64,9 @@ class MaintenanceSerializer(WritableNestedSubmodelMixin, serializers.ModelSerial
     """
     Full Maintenance serializer with reusable writable nested submodels support.
     """
-    SUBMODEL = TransactionSpareParts
-    SUBMODEL_FK = 'maintenance'
-    SUBMODEL_FIELD = 'parts'
+    SUBMODEL_CONFIGS = {
+        'parts': {'model': TransactionSpareParts, 'fk': 'maintenance'},
+    }
 
 
     _client_name = serializers.ReadOnlyField(source='client.name')
@@ -136,21 +133,17 @@ class MaintenanceSerializer(WritableNestedSubmodelMixin, serializers.ModelSerial
             mutable.pop('date_in', None)
         return super().to_internal_value(mutable)
 
-    # ── validate parts list ───────────────────────────────────────────────────
-
-    def validate_submodel_row(self, row, action):
-        """Custom row validation and data coercion logic injected here."""
+    def validate_parts_row(self, row, action):
+        """Custom row logic scoped specifically to the 'parts' field."""
         err = {}
         sp_id = row.get('spare_part')
         if not sp_id:
             err['spare_part'] = 'This field is required.'
         else:
             try:
-                spare_part = Items.objects.get(pk=sp_id)
+                row['_spare_part_obj'] = Items.objects.get(pk=sp_id)
             except Items.DoesNotExist:
                 err['spare_part'] = f'Item with id {sp_id} does not exist.'
-            else:
-                row['_spare_part_obj'] = spare_part
 
         v, error = NumberValidator._coerce_to_numeric(row.get('quantity', 1))
         if error:
@@ -164,7 +157,7 @@ class MaintenanceSerializer(WritableNestedSubmodelMixin, serializers.ModelSerial
             raise serializers.ValidationError(err)
         return row
 
-    def get_submodel_create_kwargs(self, instance, row):
+    def get_parts_create_kwargs(self, instance, row):
         return {
             'spare_part': row['_spare_part_obj'],
             'quantity': row['_qty_decimal'],
@@ -172,7 +165,7 @@ class MaintenanceSerializer(WritableNestedSubmodelMixin, serializers.ModelSerial
             'last_updated_by': instance.last_updated_by
         }
 
-    def get_submodel_update_kwargs(self, instance, row, sub_obj):
+    def get_parts_update_kwargs(self, instance, row, sub_obj):
         return {
             'spare_part': row['_spare_part_obj'],
             'quantity': row['_qty_decimal'],
