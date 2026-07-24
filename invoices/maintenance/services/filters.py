@@ -14,7 +14,7 @@ class MaintenanceFilter(filters.FilterSet):
 	- itemdesc: Item description search (case-insensitive contains)
 	- itemname: Item name search (case-insensitive contains)
 	"""
-	client__name = filters.CharFilter(field_name='client__name', lookup_expr='icontains')
+	client_name = filters.CharFilter(field_name='client__name', lookup_expr='icontains')
 	status = filters.CharFilter(field_name='status', lookup_expr='icontains')
 	
 	serial_number = filters.CharFilter(field_name='serial_number', lookup_expr='icontains')
