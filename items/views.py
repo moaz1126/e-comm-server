@@ -183,8 +183,11 @@ class ItemsList(mixins.ListModelMixin,
 			queryset = queryset.filter(id__icontains=id)
 
 		name = self.request.query_params.get('name')
-		if name:
-			queryset = queryset.filter(name__icontains=name)		
+		manipulated_params = [p for p in name.split(' ') if p]
+		if manipulated_params:
+			q_objects = [Q(name__icontains=value) for value in manipulated_params]
+			combined_q_object = reduce(and_, q_objects)
+			queryset =  queryset.filter(combined_q_object)
 
 		barcode = self.request.query_params.get('barcode')
 		if barcode:
