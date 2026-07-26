@@ -14,12 +14,17 @@ class WritableMultipleNestedSubmodelsMixin:
     SUBMODEL_CONFIGS = {}
 
     def to_internal_value(self, data):
+        # Determine if request.FILES is available (DRF passes it inside self.context['request'])
+        request = self.context.get('request')
+        files = request.FILES if request else None
+
         mutable = data.copy() if hasattr(data, 'copy') else dict(data)
         validated_raw = {}
 
         for field_name in self.SUBMODEL_CONFIGS.keys():
             json_field_name = f"{field_name}_json"
             raw_rows = None
+
             if field_name in mutable and isinstance(mutable[field_name], (list, tuple)):
                 raw_rows = mutable.pop(field_name)
             elif json_field_name in mutable:
@@ -30,10 +35,19 @@ class WritableMultipleNestedSubmodelsMixin:
                     except json.JSONDecodeError as exc:
                         raise serializers.ValidationError({json_field_name: f'Invalid JSON: {exc}'})
                 mutable.pop(json_field_name, None)
+
             if raw_rows is not None:
+                # Inject files from request.FILES if they follow a naming convention like: {field_name}_file_{index}
+                if files:
+                    for idx, row in enumerate(raw_rows):
+                        file_key = f"{field_name}_file_{idx}"
+
+                        if file_key in files:
+                            row['_file_obj'] = files[file_key]
+
                 validated_raw[field_name] = raw_rows
 
-        validated = super().to_internal_value(mutable)
+        validated = super(WritableMultipleNestedSubmodelsMixin, self).to_internal_value(mutable)
         validated['_raw_multi_submodel_rows'] = validated_raw
         return validated
 
