@@ -30,6 +30,16 @@ class Items(UpdatedCreatedBy):
 	origin = models.CharField(max_length=100, blank=True, null=True)
 	place = models.CharField(max_length=100, blank=True, null=True)
 
+	part_number = models.CharField(
+        max_length=50, 
+        unique=True,
+		null=True,
+        verbose_name="Part Number / SKU",
+        help_text="Unique identifier for the part (e.g., SKU, manufacturer part code)."
+    )
+	description = models.TextField(null=True, blank=True, verbose_name="Detailed Description")
+	note = models.TextField(null=True, blank=True)
+
 	# run on fly whenever accessed
 	# @property
 	# def stock(self):

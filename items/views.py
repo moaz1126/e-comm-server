@@ -208,27 +208,8 @@ class ItemsList(mixins.ListModelMixin,
 		return queryset
 
 	def post(self, request, *args, **kwargs):
-		with transaction.atomic():
-			try:
-				images = request.FILES.getlist('images')
-				barcodes_data = request.POST.get('barcodes', None)
-				request.data.pop('barcodes', None)
+		return self.create(request, *args, **kwargs)
 
-				res = self.create(request, *args, **kwargs)
-
-				http_request_barcodes_handler(res.data['id'], barcodes_data)
-				http_request_images_handler(res.data['id'], images)
-
-				if not float(res.data['price1']) <= 0:
-					ItemPriceLog.objects.create(
-						item_id=res.data['id'], 
-						price=res.data['price1'], 
-						by_id=request.data['by']
-					)
-
-				return res
-			except IntegrityError as e:
-				return Response({'name': 'هذا الصنف موجود بالفعل...'}, status=status.HTTP_400_BAD_REQUEST)
 	def perform_create(self, serializer):
 		serializer.save(by=self.request.user)
 
@@ -258,51 +239,8 @@ class ItemDetail(
 	def get(self, request, *args, **kwargs):
 		return self.retrieve(request, *args, **kwargs)
 
-	def put(self, request,*args, **kwargs):
-		instance = self.get_object()
-		with transaction.atomic():
-			barcodes_data = request.POST.get('barcodes', None)
-			request.data.pop('barcodes', None)
-			images = request.FILES.getlist('images')
-			
-			# Get list of image IDs to keep (sent from frontend)
-			keep_images = request.POST.get('keep_images', '')
-			keep_image_ids = [int(id.strip()) for id in keep_images.split(',') if id.strip().isdigit()]
-			
-			price1 = request.data.get('price1', instance.price1)
-			# print(request.data)
-			res = super().partial_update(request, *args, **kwargs)
-
-			http_request_barcodes_handler(instance.id, barcodes_data)
-			
-			# Delete images that are NOT in the keep list
-			for img in instance.images.all():
-				if img.id not in keep_image_ids:
-					img.delete()
-				
-			# Add newly uploaded images
-			http_request_images_handler(instance.id, images)
-
-# # Prepare images data for serializer
-#     images_data = []
-#     for img in images:
-#         images_data.append({'img': img})
-	
-#     request.data['images'] = images_data
-	
-#     serializer = self.get_serializer(instance, data=request.data, partial=True)
-#     serializer.is_valid(raise_exception=True)
-#     self.perform_update(serializer)
-
-
-			if instance.price1 != Decimal(str(price1)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):
-				ItemPriceLog.objects.create(
-					item_id=instance.id, 
-					price=res.data['price1'], 
-					by_id=res.data['by']
-				)
-
-			return res
+	def patch(self, request,*args, **kwargs):
+		return super().partial_update(request, *args, **kwargs)
 
 	def delete(self, request, *args, **kwargs):
 		instance = self.get_object()

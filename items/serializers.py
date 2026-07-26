@@ -1,7 +1,11 @@
-# from django.db import transaction
+from django.db import transaction
 from django.forms import ValidationError
 from rest_framework import serializers
 from items.models import Items, Stock, Barcode, Types, Images,InitialStock
+from common.services.MultySubModelSerializerHandler import WritableMultipleNestedSubmodelsMixin
+from items.services.__add_price_log_record import add_price_log_record
+from common.services.DynamicFileValidator import DynamicFileValidator
+
 
 
 class Base64ImageField(serializers.ImageField):
@@ -135,30 +139,129 @@ class ImagesSerializer(serializers.ModelSerializer):
 
 
 
-class ItemsSerializer(serializers.ModelSerializer):
+class ItemsSerializer(WritableMultipleNestedSubmodelsMixin, serializers.ModelSerializer):
+	SUBMODEL_CONFIGS = {
+		'barcodes': {'model': Barcode, 'fk': 'item'},
+		'images': {'model': Images, 'fk': 'item'}
+	}
+	FILE_VALIDATOR = DynamicFileValidator({
+		"max_size_mb": 5,
+		"allowed_mimes": ["image/jpeg", "image/png"],
+		"image_rules": {
+			"min_width": 30, 
+			"min_height": 30
+		}
+	})
+
+
+
 	by_username = serializers.ReadOnlyField(source='by.username')
-	# has_img = serializers.SerializerMethodField()
-	# images_upload = serializers.ListField(
-	# 		required=False,
-	# 		child=Base64ImageField(),
-	# 		write_only=True,
-	# 	)
-	# images_upload = serializers.ListField( 
-	# 	required=False,
-	# 	child=serializers.ImageField(),
-	# 	write_only=True,
-	# )
-	# images = ImageURLField(many=True, read_only=True)
-	images = ImagesSerializer(many=True, read_only=True)
+	images = ImagesSerializer(many=True)
 	stock = StockSerializer(many=True, read_only=True)
-	barcodes = BarcodeSerializer(many=True, required=False, read_only=True)
-	type_name = serializers.ReadOnlyField(source='type.name')
+	barcodes = BarcodeSerializer(many=True, required=False)
+	_type_name = serializers.ReadOnlyField(source='type.name')
 
 
 	class Meta:
 		model = Items
 		fields = '__all__'
 
+	def validate_barcodes_row(self, row, action):
+		err = {}
+		barcode = row.get('barcode')
+		
+		if not barcode:
+			err['barcode'] = 'This field is required.'
+
+		if not type(barcode) == str:
+			err['barcode'] = 'Value must be string...'
+
+		exsists_barcode = Barcode.objects.filter(barcode=barcode)
+		if exsists_barcode:
+			err['barcode'] = f'This barcode already exsists. item: "{exsists_barcode[0].item.name}"'
+
+		if len(barcode) > 49:
+			err['barcode'] = f'too long value...'
+						
+		if err:
+			raise serializers.ValidationError(err)
+
+		return row
+
+	def get_barcodes_create_kwargs(self, instance, row):
+		return {
+			'barcode': row['barcode'],
+		}
+	
+	def get_barcodes_update_kwargs(self, instance, row, sub_obj):
+		return {
+			'barcode': row['barcode'],
+		}
+
+	def validate_images_row(self, row, action):
+		err = {}
+		img = row.get('_file_obj')
+
+		# 1. Check if the file is missing during create/update
+		if (action == 'create' or action == 'update') and not img:
+			err['img'] = 'An attachment file is required.'
+		elif img:
+			try:
+				# Read bytes for deep magic-byte & constraint validation
+				file_bytes = img.read()
+				
+				# CRITICAL: Reset the file pointer back to 0 so DRF/Django can save it later
+				if hasattr(img, 'seek'):
+					img.seek(0)
+
+				is_valid, errors = self.FILE_VALIDATOR.validate_bytes(file_bytes, img.name)
+				
+				if not is_valid:
+					# Pick the first error or join them into a clean string
+					err['img'] = errors[0] if errors else "Invalid file."
+					
+			except Exception as e:
+				err['img'] = f"Failed to process file: {str(e)}"
+
+		if err:
+			raise serializers.ValidationError(err)
+
+		return row
+
+	def get_images_create_kwargs(self, instance, row):
+		kwargs = {}
+		
+		if row.get('_file_obj'):
+			kwargs['img'] = row.get('_file_obj')
+			
+		return kwargs
+
+	def get_images_update_kwargs(self, instance, row, sub_obj):
+		kwargs = {}
+		
+		if row.get('_file_obj'):
+			kwargs['img'] = row.get('_file_obj')
+
+		return kwargs
+
+	@transaction.atomic
+	def create(self, validated_data):
+		price = validated_data.get('price1', 0)
+
+		res = super().create(validated_data)
+		add_price_log_record(price, None, res)
+
+		return res
+
+	@transaction.atomic
+	def update(self, instance, validated_data):
+		price = validated_data.get('price1', instance.price1)
+		old_price = instance.price1
+
+		res = super().update(instance, validated_data)
+		add_price_log_record(price, old_price, res)
+
+		return res
 
 	# def __init__(self, *args, **kwargs):
 	# 	fieldss = kwargs.pop('fieldss', None)
@@ -168,60 +271,6 @@ class ItemsSerializer(serializers.ModelSerializer):
 	# 		existing = set(self.fields.keys())
 	# 		for field_name in existing - allowed:
 	# 			self.fields.pop(field_name)
-
-	# def create(self, validated_data):
-	# 	barcodes_data = validated_data.pop('barcodes', None)
-
-	# 	with transaction.atomic():
-	# 		item = super().create(validated_data)
-
-	# 		if barcodes_data:
-	# 			for barcode in barcodes_data:
-	# 				item.barcodes.create(barcode=barcode['barcode'])
-
-	# 		return item
-
-	# def update(self, instance, validated_data):
-	#     images_data = validated_data.pop('images', [])
-		
-	#     with transaction.atomic():
-	#         # Update the item instance
-	#         instance = super().update(instance, validated_data)
-
-	#         # Handle images
-	#         existing_images = {img.id: img for img in instance.images.all()}
-			
-	#         # Process each image in the request
-	#         for image_data in images_data:
-	#             image_id = image_data.get('id')
-				
-	#             if image_id and image_id in existing_images:
-	#                 # Update existing image if new file provided
-	#                 if 'img' in image_data:
-	#                     existing_image = existing_images[image_id]
-	#                     existing_image.img = image_data['img']
-	#                     existing_image.save()
-	#                 existing_images.pop(image_id)
-	#             else:
-	#                 # Create new image
-	#                 if 'img' in image_data:
-	#                     Images.objects.create(item=instance, **image_data)
-
-	#         # Delete any remaining old images
-	#         for image in existing_images.values():
-	#             image.delete()
-
-	#         return instance
-
-	# def get_stock(self, obj):
-	# 	return [f'{i.repository}: {i.quantity}, ' for i in obj.stock.all()]
-
-	# def get_by_username(self, obj):
-	# 	return obj.by.username
-	
-	# def get_has_img(self, obj):
-	# 	return obj.images.exists()
-
 
 
 
