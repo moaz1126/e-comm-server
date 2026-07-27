@@ -28,7 +28,7 @@ class CustomAuthentication(BaseAuthentication):
              return (None, None)
         
         token = request.headers.get('auth', '')
-        token = request.COOKIES.get('auth_0', '') + request.COOKIES.get('auth_1', '') if not token else token
+        token = "".join(request.COOKIES.get(f"auth_{i}", "") for i in range(8)) if not token else token
         
         payload, verification_status = JWTUtilities.verify_jwt(token)
 
