@@ -1,6 +1,7 @@
 import json
 from django.db import transaction
 from rest_framework import serializers
+from django.db.utils import IntegrityError
 
 class WritableMultipleNestedSubmodelsMixin:
     """
@@ -136,7 +137,12 @@ class WritableMultipleNestedSubmodelsMixin:
                     create_hook = getattr(self, f'get_{field_name}_create_kwargs', self.get_submodel_create_kwargs)
                     kwargs = create_hook(instance, row)
                     kwargs[fk_name] = instance
-                    submodel_cls.objects.create(**kwargs)
+                    try:
+                        submodel_cls.objects.create(**kwargs)
+                    except IntegrityError as e:
+                        raise serializers.ValidationError(
+                            {'detail': str(e)}
+                        )
                 elif action == 'update':
                     row_id = row.get('id')
                     if not row_id:
@@ -155,7 +161,12 @@ class WritableMultipleNestedSubmodelsMixin:
                     update_kwargs = update_hook(instance, row, sub_obj)
                     for key, val in update_kwargs.items():
                         setattr(sub_obj, key, val)
-                    sub_obj.save()
+                    try:
+                        sub_obj.save()
+                    except IntegrityError as e:
+                        raise serializers.ValidationError(
+                            {'detail': str(e)}
+                        )
                 elif action == 'delete':
                     row_id = row.get('id')
                     submodel_cls.objects.filter(pk=row_id, **{fk_name: instance}).delete()

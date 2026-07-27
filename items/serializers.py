@@ -156,7 +156,7 @@ class ItemsSerializer(WritableMultipleNestedSubmodelsMixin, serializers.ModelSer
 
 
 	by_username = serializers.ReadOnlyField(source='by.username')
-	images = ImagesSerializer(many=True)
+	images = ImagesSerializer(many=True, required=False)
 	stock = StockSerializer(many=True, read_only=True)
 	barcodes = BarcodeSerializer(many=True, required=False)
 	_type_name = serializers.ReadOnlyField(source='type.name')
@@ -172,9 +172,6 @@ class ItemsSerializer(WritableMultipleNestedSubmodelsMixin, serializers.ModelSer
 		
 		if not barcode:
 			err['barcode'] = 'This field is required.'
-
-		if not type(barcode) == str:
-			err['barcode'] = 'Value must be string...'
 
 		exsists_barcode = Barcode.objects.filter(barcode=barcode)
 		if exsists_barcode:
