@@ -31,12 +31,12 @@ class Items(UpdatedCreatedBy):
 	place = models.CharField(max_length=100, blank=True, null=True)
 
 	part_number = models.CharField(
-        max_length=50, 
-        unique=True,
+		max_length=50, 
+		unique=True,
 		null=True,
-        verbose_name="Part Number / SKU",
-        help_text="Unique identifier for the part (e.g., SKU, manufacturer part code)."
-    )
+		verbose_name="Part Number / SKU",
+		help_text="Unique identifier for the part (e.g., SKU, manufacturer part code)."
+	)
 	description = models.TextField(null=True, blank=True, verbose_name="Detailed Description")
 	note = models.TextField(null=True, blank=True)
 
@@ -185,3 +185,7 @@ class ItemPriceLog(UpdatedCreatedBy):
 
 	def __str__(self):
 		return f'item: {self.item.name}, price: {self.price}'
+
+
+	class Meta:
+			ordering = ['-date']

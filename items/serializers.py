@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.forms import ValidationError
 from rest_framework import serializers
-from items.models import Items, Stock, Barcode, Types, Images,InitialStock
+from items.models import Items, Stock, Barcode, Types, Images,InitialStock, DamagedItems, ItemPriceLog
 from common.services.MultySubModelSerializerHandler import WritableMultipleNestedSubmodelsMixin
 from items.services.__add_price_log_record import add_price_log_record
 from common.services.DynamicFileValidator import DynamicFileValidator
@@ -132,6 +132,21 @@ class ImagesSerializer(serializers.ModelSerializer):
 	# 	return value
 
 
+# _____________________________________________________________________________________#
+
+
+
+
+class PriceLogSerializer(serializers.ModelSerializer):
+	_by_username = serializers.ReadOnlyField(source='by.username')
+
+
+
+	class Meta:
+		model = ItemPriceLog
+		fields = ['price', 'date', 'notes', '_by_username']
+
+
 
 
 # _____________________________________________________________________________________#
@@ -159,6 +174,7 @@ class ItemsSerializer(WritableMultipleNestedSubmodelsMixin, serializers.ModelSer
 	images = ImagesSerializer(many=True, required=False)
 	stock = StockSerializer(many=True, read_only=True)
 	barcodes = BarcodeSerializer(many=True, required=False)
+	item_price_log = PriceLogSerializer(many=True, read_only=True)
 	_type_name = serializers.ReadOnlyField(source='type.name')
 
 
@@ -304,7 +320,6 @@ class InitialStockSerializer(serializers.ModelSerializer):
 
 
 
-from .models import DamagedItems
 class DamagedItemsSerializer(serializers.ModelSerializer):
 	by_username = serializers.ReadOnlyField(source='by.username')
 	owner_name = serializers.ReadOnlyField(source='owner.name')
