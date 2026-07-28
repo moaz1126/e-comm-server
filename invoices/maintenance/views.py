@@ -1,5 +1,4 @@
 from rest_framework import generics, mixins
-from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 
 from common.services.customeConfigurationHandler import customeFilters
@@ -21,7 +20,6 @@ class MaintenanceView(mixins.CreateModelMixin, mixins.ListModelMixin, generics.G
 	).prefetch_related('parts')
 	metadata_class = CompositeMetadata
 	serializer_class = MaintenanceSerializer
-	permission_classes = [IsAuthenticated]
 	# filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
 	# filterset_fields = ['status', 'client', 'item', 'date_in']
 	# search_fields = ['serial_number', 'client__name', 'item__name']
@@ -53,8 +51,9 @@ class MaintenanceDetailView(
 		'client', 'item', 'maintained_by', 'created_by', 'last_updated_by'
 	).prefetch_related('parts')
 	serializer_class = MaintenanceSerializer
-	permission_classes = [IsAuthenticated]
-	
+
+
+
 	def get_object(self):
 		encoded_pk = self.kwargs.get('pk')
 		try:
